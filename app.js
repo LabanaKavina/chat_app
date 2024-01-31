@@ -28,30 +28,23 @@ app.use('/user' , userRoute)
 let connectedUsers = {}
 
 io.on("connection", (socket ) => {
-  const userId = socket.id;
-    connectedUsers[userId] = socket;
+  connectedUsers[socket.id] = socket;
+  
+    socket.on('connected-users', async({ sender , target}) => {
+      connectedUsers['from'] = sender
+      connectedUsers['to'] = target
+      msgs(socket, sender, target);
+    })
 
-    let { from , to } = connectedUsers
-    msgs(socket, from, to);
-
-    socket.on("chat", async({ from , to, message }) => {
+    socket.on("send-chat", async({ from , to, message }) => {
       const {rows } = await client.query('insert into chats(message ,from_id , to_id ) values($1,$2,$3)',[message ,from, to])
-     socket.emit('chat',({ from , to, message }))
+      socket.emit('receive-chat',({ from , to, message }))
     });
-
+    
     socket.on("disconnect", () => {
       delete connectedUsers[userId];
       console.log(`User disconnected with ID: ${userId}`);
     });
-});
-
-app.post("/target_user", (req, res) => {
-
-  let userId = req.body.userId
-  let targetUser = req.body.targetUser;
-  connectedUsers.from = userId
-  connectedUsers.to = targetUser
-  res.json('done')
 });
 
 const msgs = async (socket, userId, targetUser) => {
@@ -60,7 +53,7 @@ const msgs = async (socket, userId, targetUser) => {
     [userId, targetUser]
   );
   rows.map((msg) => {
-    socket.emit("chat", { from: msg.from_id , to : msg.to_id, message: msg.message });
+    socket.emit("receive-chat", { from: msg.from_id , to : msg.to_id, message: msg.message });
   });
 };
 
