@@ -29,7 +29,7 @@ let connectedUsers = {}
 
 io.on("connection", (socket ) => {
   connectedUsers[socket.id] = socket;
-  
+  console.log(socket.id);
     socket.on('connected-users', async({ sender , target}) => {
       connectedUsers['from'] = sender
       connectedUsers['to'] = target
@@ -38,12 +38,12 @@ io.on("connection", (socket ) => {
 
     socket.on("send-chat", async({ from , to, message }) => {
       const {rows } = await client.query('insert into chats(message ,from_id , to_id ) values($1,$2,$3)',[message ,from, to])
-      socket.emit('receive-chat',({ from , to, message }))
+      socket.emit('receive-chat',{ from , to, message })
+      socket.emit('send-chat',{ to , from, message })
     });
-    
     socket.on("disconnect", () => {
-      delete connectedUsers[userId];
-      console.log(`User disconnected with ID: ${userId}`);
+      delete connectedUsers[socket.id];
+      console.log(`User disconnected with ID: ${socket.id}`);
     });
 });
 
@@ -53,6 +53,9 @@ const msgs = async (socket, userId, targetUser) => {
     [userId, targetUser]
   );
   rows.map((msg) => {
+    if(msg.from_id != userId){
+      socket.emit("send-chat", { from: msg.from_id , to : msg.to_id, message: msg.message });
+    }
     socket.emit("receive-chat", { from: msg.from_id , to : msg.to_id, message: msg.message });
   });
 };
